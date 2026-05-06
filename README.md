@@ -1,8 +1,6 @@
 # SignNow Python Sample App
 
-A FastAPI application demonstrating the SignNow API via the official `signnow-python-sdk` package from PyPI. Companion to [`java-sample-app`](../java-sample-app/) and [`php-sample-app`](../php-sample-app/).
-
-Ports all 20 samples: 16 shared with Java & PHP + 2 Java-only + 2 PHP-only.
+A FastAPI application demonstrating the SignNow API via the official `signnow-python-sdk` package from PyPI. 
 
 ## Quick Start
 
