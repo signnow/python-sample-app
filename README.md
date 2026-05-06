@@ -78,10 +78,10 @@ http://localhost:8080/samples/EmbeddedSignerConsentForm
 | ISVWithFormAndOneClickSendMergeFields | ISV one-click send, merge fields |
 | HROnboardingSystem | HR onboarding multi-document flow |
 | UploadEmbeddedSender | Upload PDF + embedded sender |
-| PrefillAndEmbeddedSendingAgreement | Prefill + embedded send (Java-only origin) |
-| PrefillAndOneClickSendingAgreement | Prefill + one-click send (Java-only origin) |
-| EVDemoSendingAnd3EmbeddedSigners | Real estate: 3 sequential embedded signers (PHP-only origin) |
-| UploadEmbeddedEditingAndInvite | Upload PDF, embedded edit, invite (PHP-only origin) |
+| PrefillAndEmbeddedSendingAgreement | Prefill + embedded send |
+| PrefillAndOneClickSendingAgreement | Prefill + one-click send |
+| EVDemoSendingAnd3EmbeddedSigners | Real estate: 3 sequential embedded signers |
+| UploadEmbeddedEditingAndInvite | Upload PDF, embedded edit, invite |
 
 ## Project Structure
 
