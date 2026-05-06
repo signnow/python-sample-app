@@ -1,0 +1,43 @@
+# Virtualenv / build artifacts
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tooling and version control
+.git/
+.gitignore
+.dockerignore
+
+# Documentation / repo metadata
+README.md
+*.md
+docker-compose.yaml
+docker-compose.yml
+
+# Test artifacts and tmp
+tests/
+/tmp/
+downloads/
