@@ -151,7 +151,7 @@ Tests are smoke-level only: they confirm the FastAPI app starts, dispatch routes
 
 ## Tech Stack
 
-- Python 3.12 (tested on 3.14)
+- Python 3.12 (tested on 3.13)
 - FastAPI 0.115 + Uvicorn 0.32
 - `signnow-python-sdk` 3.0.0 (from PyPI)
 - `pydantic-settings` 2.5 for `.env` loading

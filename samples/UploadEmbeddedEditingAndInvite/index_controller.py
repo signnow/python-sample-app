@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.sample_interface import SampleController
 
+from signnow.core.exception import SignNowApiException
 from signnow.core.factory import SdkFactory
 from signnow.api.document.request.document_get_request import DocumentGetRequest
 from signnow.api.document.request.document_post_request import DocumentPostRequest
@@ -85,6 +86,8 @@ class IndexController(SampleController):
             req = DocumentPostRequest(file=tmp_path, name=filename)
             resp = client.send(req).get_response()
             document_id = resp.id
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
@@ -103,13 +106,16 @@ class IndexController(SampleController):
             f"{APP_URL}/samples/{SAMPLE_NAME}?"
             + urllib.parse.urlencode({"page": "invite-page", "document_id": document_id})
         )
-        req = DocumentEmbeddedEditorLinkPostRequest(
-            redirect_uri=redirect_url,
-            redirect_target="self",
-            link_expiration=15,
-        ).with_document_id(document_id)
-        resp = client.send(req).get_response()
-        edit_link = resp.data.get("url") if isinstance(resp.data, dict) else None
+        try:
+            req = DocumentEmbeddedEditorLinkPostRequest(
+                redirect_uri=redirect_url,
+                redirect_target="self",
+                link_expiration=15,
+            ).with_document_id(document_id)
+            resp = client.send(req).get_response()
+            edit_link = resp.data.get("url") if isinstance(resp.data, dict) else None
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         return JSONResponse({"success": True, "edit_link": edit_link})
 
@@ -124,53 +130,59 @@ class IndexController(SampleController):
                 status_code=400,
             )
 
-        doc_resp = client.send(
-            DocumentGetRequest().with_document_id(document_id)
-        ).get_response()
+        try:
+            doc_resp = client.send(
+                DocumentGetRequest().with_document_id(document_id)
+            ).get_response()
 
-        recipients = self._extract_recipients_from_doc(doc_resp)
-        redirect_uri = f"{APP_URL}/samples/{SAMPLE_NAME}?page=status-page&document_id={document_id}"
+            recipients = self._extract_recipients_from_doc(doc_resp)
+            redirect_uri = f"{APP_URL}/samples/{SAMPLE_NAME}?page=status-page&document_id={document_id}"
 
-        to_list: list[dict[str, Any]] = []
-        for role in doc_resp.roles or []:
-            role_id = role.get("unique_id")
-            role_name = role.get("name")
-            signing_order = int(role.get("signing_order") or 1)
+            to_list: list[dict[str, Any]] = []
+            for role in doc_resp.roles or []:
+                role_id = role.get("unique_id")
+                role_name = role.get("name")
+                signing_order = int(role.get("signing_order") or 1)
 
-            # Find a recipient that targets this role
-            matched = next((r for r in recipients if r["role_id"] == role_id), None)
-            email_to_use = matched["email"] if matched else signer_email
-            name_to_use = matched["role"] if matched else signer_name
+                # Find a recipient that targets this role
+                matched = next((r for r in recipients if r["role_id"] == role_id), None)
+                email_to_use = matched["email"] if matched else signer_email
+                name_to_use = matched["role"] if matched else signer_name
 
-            to_list.append({
-                "email": email_to_use,
-                "role_id": role_id,
-                "role": role_name,
-                "order": signing_order,
-                "subject": "Document Signing Request - Action Required",
-                "message": f"Dear {name_to_use}, please review and sign the uploaded document.",
-                "redirect_uri": redirect_uri,
-            })
+                to_list.append({
+                    "email": email_to_use,
+                    "role_id": role_id,
+                    "role": role_name,
+                    "order": signing_order,
+                    "subject": "Document Signing Request - Action Required",
+                    "message": f"Dear {name_to_use}, please review and sign the uploaded document.",
+                    "redirect_uri": redirect_uri,
+                })
 
-        req = SendInvitePostRequest(
-            to=to_list,
-            from_email=SENDER_EMAIL,
-            subject="Document Signing Request - Action Required",
-            message=f"Dear {signer_name}, please review and sign the uploaded document.",
-        )
-        # SendInvitePostRequest does not have with_document_id in its setters listed, but PHP uses it.
-        # If the SDK exposes it, call it; otherwise rely on the constructor to carry document_id.
-        if hasattr(req, "with_document_id"):
-            req = req.with_document_id(document_id)
-        client.send(req)
+            req = SendInvitePostRequest(
+                to=to_list,
+                from_email=SENDER_EMAIL,
+                subject="Document Signing Request - Action Required",
+                message=f"Dear {signer_name}, please review and sign the uploaded document.",
+            )
+            # SendInvitePostRequest does not have with_document_id in its setters listed, but PHP uses it.
+            # If the SDK exposes it, call it; otherwise rely on the constructor to carry document_id.
+            if hasattr(req, "with_document_id"):
+                req = req.with_document_id(document_id)
+            client.send(req)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         return JSONResponse({"success": True, "message": "Invite sent successfully"})
 
     def _invite_status(self, client, form_data: dict[str, Any]) -> Response:
         document_id = form_data.get("document_id")
-        doc_resp = client.send(
-            DocumentGetRequest().with_document_id(document_id)
-        ).get_response()
+        try:
+            doc_resp = client.send(
+                DocumentGetRequest().with_document_id(document_id)
+            ).get_response()
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         statuses = []
         for invite in doc_resp.field_invites or []:
@@ -190,13 +202,16 @@ class IndexController(SampleController):
 
     def _download_document(self, client, form_data: dict[str, Any]) -> Response:
         document_id = form_data.get("document_id")
-        dl_req = (DocumentDownloadGetRequest()
-                  .with_document_id(document_id)
-                  .with_type("collapsed"))
-        if hasattr(dl_req, "with_history"):
-            dl_req = dl_req.with_history("no")
-        dl_resp = client.send(dl_req).get_response()
-        file_path = dl_resp.file_path
+        try:
+            dl_req = (DocumentDownloadGetRequest()
+                      .with_document_id(document_id)
+                      .with_type("collapsed"))
+            if hasattr(dl_req, "with_history"):
+                dl_req = dl_req.with_history("no")
+            dl_resp = client.send(dl_req).get_response()
+            file_path = dl_resp.file_path
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return FileResponse(
             path=file_path,
             media_type="application/pdf",
@@ -208,10 +223,13 @@ class IndexController(SampleController):
         if not document_id:
             return JSONResponse({"success": False, "message": "Document ID is required"}, status_code=400)
 
-        doc_resp = client.send(
-            DocumentGetRequest().with_document_id(document_id)
-        ).get_response()
-        recipients = self._extract_recipients_from_doc(doc_resp)
+        try:
+            doc_resp = client.send(
+                DocumentGetRequest().with_document_id(document_id)
+            ).get_response()
+            recipients = self._extract_recipients_from_doc(doc_resp)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return JSONResponse({"success": True, "recipients": recipients})
 
     def _add_recipient(self, client, form_data: dict[str, Any]) -> Response:
@@ -223,41 +241,44 @@ class IndexController(SampleController):
         if not all([document_id, recipient_name, recipient_email, recipient_role]):
             return JSONResponse({"success": False, "message": "All fields are required"}, status_code=400)
 
-        doc_resp = client.send(
-            DocumentGetRequest().with_document_id(document_id)
-        ).get_response()
-        target_role = None
-        for role in doc_resp.roles or []:
-            if role.get("name") == recipient_role:
-                target_role = role
-                break
-        if target_role is None:
-            available = ", ".join(r.get("name", "") for r in (doc_resp.roles or []))
-            return JSONResponse(
-                {"success": False, "message": f"Role '{recipient_role}' not found in document. Available roles: {available}"},
-                status_code=400,
+        try:
+            doc_resp = client.send(
+                DocumentGetRequest().with_document_id(document_id)
+            ).get_response()
+            target_role = None
+            for role in doc_resp.roles or []:
+                if role.get("name") == recipient_role:
+                    target_role = role
+                    break
+            if target_role is None:
+                available = ", ".join(r.get("name", "") for r in (doc_resp.roles or []))
+                return JSONResponse(
+                    {"success": False, "message": f"Role '{recipient_role}' not found in document. Available roles: {available}"},
+                    status_code=400,
+                )
+
+            redirect_uri = f"{APP_URL}/samples/{SAMPLE_NAME}?page=status-page&document_id={document_id}"
+            to_list = [{
+                "email": recipient_email,
+                "role_id": target_role.get("unique_id"),
+                "role": target_role.get("name"),
+                "order": int(target_role.get("signing_order") or 1),
+                "subject": "Document Signing Request - Action Required",
+                "message": f"Dear {recipient_name}, please review and sign the uploaded document.",
+                "redirect_uri": redirect_uri,
+            }]
+
+            req = SendInvitePostRequest(
+                to=to_list,
+                from_email=SENDER_EMAIL,
+                subject="Document Signing Request - Action Required",
+                message=f"Dear {recipient_name}, please review and sign the uploaded document.",
             )
-
-        redirect_uri = f"{APP_URL}/samples/{SAMPLE_NAME}?page=status-page&document_id={document_id}"
-        to_list = [{
-            "email": recipient_email,
-            "role_id": target_role.get("unique_id"),
-            "role": target_role.get("name"),
-            "order": int(target_role.get("signing_order") or 1),
-            "subject": "Document Signing Request - Action Required",
-            "message": f"Dear {recipient_name}, please review and sign the uploaded document.",
-            "redirect_uri": redirect_uri,
-        }]
-
-        req = SendInvitePostRequest(
-            to=to_list,
-            from_email=SENDER_EMAIL,
-            subject="Document Signing Request - Action Required",
-            message=f"Dear {recipient_name}, please review and sign the uploaded document.",
-        )
-        if hasattr(req, "with_document_id"):
-            req = req.with_document_id(document_id)
-        client.send(req)
+            if hasattr(req, "with_document_id"):
+                req = req.with_document_id(document_id)
+            client.send(req)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         return JSONResponse({"success": True, "message": "Recipient added and invite sent successfully"})
 
@@ -266,9 +287,12 @@ class IndexController(SampleController):
         if not document_id:
             return JSONResponse({"success": False, "message": "Document ID is required"}, status_code=400)
 
-        doc_resp = client.send(
-            DocumentGetRequest().with_document_id(document_id)
-        ).get_response()
+        try:
+            doc_resp = client.send(
+                DocumentGetRequest().with_document_id(document_id)
+            ).get_response()
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         roles_data = [{
             "name": r.get("name"),

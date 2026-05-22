@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.sample_interface import SampleController
 
+from signnow.core.exception import SignNowApiException
 from signnow.core.factory import SdkFactory
 from signnow.api.document.request.document_get_request import DocumentGetRequest
 from signnow.api.documentfield.request.document_prefill_put_request import DocumentPrefillPutRequest
@@ -80,14 +81,17 @@ class IndexController(SampleController):
                 "message": "All fields are required",
             }, status_code=400)
 
-        dg_id = self._create_document_group(client, template_ids, {
-            NAME_FIELD: employee_name,
-            TEXT_FIELD_2: employee_name,
-            TEXT_FIELD_156: employee_name,
-            EMAIL_FIELD: employee_email,
-        })
+        try:
+            dg_id = self._create_document_group(client, template_ids, {
+                NAME_FIELD: employee_name,
+                TEXT_FIELD_2: employee_name,
+                TEXT_FIELD_156: employee_name,
+                EMAIL_FIELD: employee_email,
+            })
 
-        self._send_invite(client, dg_id, employee_email, hr_manager_email, employer_email)
+            self._send_invite(client, dg_id, employee_email, hr_manager_email, employer_email)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
 
         return JSONResponse({
             "success": True,
@@ -96,7 +100,10 @@ class IndexController(SampleController):
 
     def _get_invite_status(self, data: dict[str, Any], client) -> Response:
         dg_id = data["document_group_id"]
-        status = self._get_document_group_signers_status(client, dg_id)
+        try:
+            status = self._get_document_group_signers_status(client, dg_id)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return JSONResponse(status)
 
     def _download_document_group(self, data: dict[str, Any], client) -> Response:
@@ -107,7 +114,10 @@ class IndexController(SampleController):
                 "message": "Document group ID is required",
             }, status_code=400)
 
-        file_path = self._download_document_group_file(client, dg_id)
+        try:
+            file_path = self._download_document_group_file(client, dg_id)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return FileResponse(
             path=file_path,
             media_type="application/pdf",

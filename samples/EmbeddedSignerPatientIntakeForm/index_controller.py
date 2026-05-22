@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Response
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from app.sample_interface import SampleController
 from app.settings import settings
 
+from signnow.core.exception import SignNowApiException
 from signnow.core.factory import SdkFactory
 from signnow.api.template.request.clone_template_post_request import CloneTemplatePostRequest
 from signnow.api.document.request.document_get_request import DocumentGetRequest
@@ -30,14 +31,20 @@ class IndexController(SampleController):
             html_path = Path(__file__).parent / "index.html"
             return HTMLResponse(html_path.read_text())
 
-        client = SdkFactory.create_api_client()
-        link = self._create_invite_and_return_signing_link(client)
+        try:
+            client = SdkFactory.create_api_client()
+            link = self._create_invite_and_return_signing_link(client)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return RedirectResponse(link, status_code=302)
 
     def handle_post(self, form_data: dict[str, Any]) -> Response:
         document_id = form_data["document_id"]
-        client = SdkFactory.create_api_client()
-        file_path = self._download_document(client, document_id)
+        try:
+            client = SdkFactory.create_api_client()
+            file_path = self._download_document(client, document_id)
+        except SignNowApiException as e:
+            return JSONResponse({"success": False, "message": str(e)}, status_code=500)
         return FileResponse(
             path=file_path,
             media_type="application/pdf",
