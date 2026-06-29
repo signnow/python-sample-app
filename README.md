@@ -1,6 +1,11 @@
 # SignNow Python Sample App
 
-A FastAPI application demonstrating the SignNow API via the official `signnow-python-sdk` package from PyPI. 
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-cyan)](https://fastapi.tiangolo.com/)
+[![SignNow SDK](https://img.shields.io/badge/SignNow_SDK-3.0+-light)](https://pypi.org/project/signnow-python-sdk/)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+
+A FastAPI application demonstrating the SignNow API via the official [`signnow-python-sdk`](https://pypi.org/project/signnow-python-sdk/) package from PyPI.
 
 ## Quick Start
 
@@ -18,14 +23,14 @@ cp .env.example .env
 
 Edit `.env` and fill in your SignNow credentials:
 
-| Variable | Description |
-|---|---|
-| `SIGNNOW_API_HOST` | `https://api.signnow.com` (production) or sandbox URL |
-| `SIGNNOW_API_BASIC_TOKEN` | Base64 token from your SignNow API dashboard |
-| `SIGNNOW_API_USERNAME` | Your SignNow account email |
-| `SIGNNOW_API_PASSWORD` | Your SignNow account password |
-| `SIGNNOW_DOWNLOADS_DIR` | Where downloaded documents are cached (default `/tmp/signnow-downloads`) |
-| `SN_SIGNER_EMAIL` | Default embedded signer email |
+| Variable | Example | Description |
+|---|---|---|
+| `SIGNNOW_API_HOST` | `https://api.signnow.com` | Production or sandbox URL |
+| `SIGNNOW_API_BASIC_TOKEN` | `c2lnbk5vdy4...` | Base64 token from [API Dashboard](https://app.signnow.com/webapp/api-dashboard/keys) |
+| `SIGNNOW_API_USERNAME` | `you@example.com` | Your SignNow account email |
+| `SIGNNOW_API_PASSWORD` | `••••••` | Your SignNow account password |
+| `SIGNNOW_DOWNLOADS_DIR` | `/tmp/signnow-downloads` | Where downloaded documents are cached |
+| `SN_SIGNER_EMAIL` | `signer@example.com` | Default embedded signer email |
 
 ### 3. Run with Docker Compose (recommended)
 
@@ -33,7 +38,7 @@ Edit `.env` and fill in your SignNow credentials:
 docker compose up --build
 ```
 
-This builds the image, starts the container with `.env` mounted, and exposes the app on `http://localhost:8080`. Stop with `Ctrl+C`; remove with `docker compose down`.
+App is available at `http://localhost:8080`. Stop with `Ctrl+C`; remove with `docker compose down`.
 
 ### 4. Run with Docker (without Compose)
 
@@ -52,11 +57,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 
 ### 6. Open a sample
 
-Navigate to `http://localhost:8080/samples/<SampleName>`, e.g.:
-
 ```
 http://localhost:8080/samples/EmbeddedSignerConsentForm
 ```
+
+`http://localhost:8080/samples` lists all available samples.
 
 ## Available Samples (20)
 
@@ -95,7 +100,7 @@ samples/
   <SampleName>/
     __init__.py
     index_controller.py IndexController(SampleController)
-    index.html          Thank-you / download UI
+    index.html          UI served on GET /samples/<SampleName>
 static/                 Shared CSS, JS, images, error.html
 tests/                  Smoke tests (42 tests)
 ```
@@ -105,11 +110,11 @@ tests/                  Smoke tests (42 tests)
 | Method | Path | Handler |
 |---|---|---|
 | GET | `/` | 404 error page |
-| GET | `/samples/{name}` | Dispatch to `samples.<name>.IndexController.handle_get` |
-| POST | `/api/samples/{name}` | Dispatch to `samples.<name>.IndexController.handle_post` |
-| GET | `/css/*`, `/js/*`, `/img/*`, `/fonts/*`, `/assets/*` | Shared static files |
+| GET | `/samples/{name}` | `samples.<name>.IndexController.handle_get` |
+| POST | `/api/samples/{name}` | `samples.<name>.IndexController.handle_post` |
+| GET | `/css/*`, `/js/*`, `/img/*`, etc. | Shared static files |
 
-Sample discovery is by convention: any folder under `samples/` matching the regex `^[a-zA-Z0-9_]+$` whose `index_controller.py` exports an `IndexController` subclass of `SampleController` is automatically reachable.
+Sample names must match `^[a-zA-Z0-9_]+$`. Any folder under `samples/` whose `index_controller.py` exports an `IndexController` subclass of `SampleController` is automatically reachable — no registration needed.
 
 ## Add a New Sample
 
@@ -141,13 +146,24 @@ pytest tests/ -v
 ```
 
 42 smoke-level tests:
-- 2 settings defaults/overrides
+- 2 settings defaults / overrides
 - 3 SampleController ABC contract
-- 11 name-validation + dispatch (regex, load_controller, 404 responses, static mounts)
-- 6 HTTP-layer (root, unknown, invalid name, static CSS/img)
-- 20 per-sample module-loads (one per sample)
+- 11 name-validation + dispatch (regex, load_controller, 404, static mounts)
+- 6 HTTP layer (root, unknown, invalid name, static CSS/img)
+- 20 per-sample module loads (one per sample)
 
-Tests are smoke-level only: they confirm the FastAPI app starts, dispatch routes to each sample's controller, and 404 pages render correctly. They do NOT exercise real SignNow API calls (those require live credentials).
+Tests confirm the app starts and each sample's controller loads correctly.
+They do **not** exercise real SignNow API calls (live credentials required).
+
+## SDK Notes
+
+Known quirks in `signnow-python-sdk` 3.0 that are worth knowing before you dig into controllers:
+
+**Multipart upload** — `DocumentPostRequest` accepts a file path string, not a file object. Pass the absolute path; the SDK opens the file internally.
+
+**`handle_post` receives `Request`** — FastAPI passes the full `Request` object (not pre-parsed JSON). Call `await request.json()` or `await request.form()` depending on the content type.
+
+**Embedded invite response** — `DocumentInvitePostResponse.data` is a list; each item exposes `.role_id` and `.id` (the invite ID needed for `DocumentInviteLinkPost`).
 
 ## Tech Stack
 
@@ -155,8 +171,14 @@ Tests are smoke-level only: they confirm the FastAPI app starts, dispatch routes
 - FastAPI 0.115 + Uvicorn 0.32
 - `signnow-python-sdk` 3.0.0 (from PyPI)
 - `pydantic-settings` 2.5 for `.env` loading
+- pytest (tests)
 - Docker: single-stage `python:3.12-slim`
+
+## GitHub Copilot Extension
+
+Get AI-powered SignNow code suggestions in your IDE:
+[github.com/apps/signnow](https://github.com/apps/signnow) — start prompts with `@signnow`.
 
 ## License
 
-See repository root.
+See [LICENSE](./LICENSE).
